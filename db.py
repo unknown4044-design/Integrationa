@@ -35,6 +35,19 @@ _DEFAULT_SETTINGS = {
     "pending_message": "Aapka payment verification ke liye bhej diya gaya hai. Thodi der me confirm ho jayega ✅",
     "accept_message": "🎉 Payment Accepted! Neeche aapka private access link hai:",
     "reject_message": "❌ Aapka payment verify nahi ho paya. Dobara try karo ya support se contact karo.",
+
+    "welcome_media_type": None,
+    "welcome_media_file_id": None,
+    "welcome_caption": "👋 Welcome!",
+
+    "payment_media_type": None,
+    "payment_media_file_id": None,
+    "payment_caption": "",
+
+    "screenshot_media_type": None,
+    "screenshot_media_file_id": None,
+    "screenshot_caption": "",
+
 }
 
 
