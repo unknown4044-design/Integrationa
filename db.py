@@ -18,6 +18,8 @@ items = _db.items
 groups = _db.groups
 orders = _db.orders
 settings = _db.settings
+users = _db.users
+clones = _db.clones
 
 _DEFAULT_SETTINGS = {
     "_id": "config",
@@ -232,3 +234,40 @@ def find_awaiting_payment_order(user_id):
 
 def list_pending_orders():
     return list(orders.find({"status": "pending"}).sort("created_at", 1))
+
+
+# ---------------- Users (broadcast ke liye) ----------------
+
+def upsert_user(user_id, username, full_name):
+    users.update_one(
+        {"_id": user_id},
+        {"$set": {"username": username, "full_name": full_name},
+         "$setOnInsert": {"first_seen": int(time.time())}},
+        upsert=True,
+    )
+
+
+def list_user_ids():
+    return [u["_id"] for u in users.find({}, {"_id": 1})]
+
+
+def count_users():
+    return users.count_documents({})
+
+
+# ---------------- Clone Bots (Master bot se manage hote hain) ----------------
+
+def add_clone(token, label):
+    return str(clones.insert_one({"token": token, "label": label, "added_at": int(time.time())}).inserted_id)
+
+
+def list_clones():
+    return list(clones.find())
+
+
+def get_clone(clone_id):
+    return clones.find_one({"_id": ObjectId(clone_id)})
+
+
+def delete_clone(clone_id):
+    clones.delete_one({"_id": ObjectId(clone_id)})

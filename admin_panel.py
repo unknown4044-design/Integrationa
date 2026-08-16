@@ -4,7 +4,9 @@ Content (courses/items/banner/caption/price), groups, welcome/accept banners,
 aur saare text-messages yahin se runtime me configure hote hain.
 """
 
-from telegram import Update
+import asyncio
+
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Bot
 from telegram.constants import ParseMode
 from telegram.ext import ContextTypes
 
@@ -19,8 +21,15 @@ def _guard(update: Update) -> bool:
     return utils.is_admin(update.effective_user.id)
 
 
+def _is_master(context: ContextTypes.DEFAULT_TYPE) -> bool:
+    return bool(context.bot_data.get("is_master"))
+
+
 async def cmd_admin(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _guard(update):
+        return
+    if not _is_master(context):
+        await update.message.reply_text("⛔ Yeh command sirf Master Bot me kaam karta hai. Settings ke liye Master Bot use karo.")
         return
     context.user_data.pop("adm_state", None)
     await update.message.reply_text("🛠 <b>Admin Panel</b>", parse_mode=ParseMode.HTML, reply_markup=kb.admin_main_kb())
@@ -42,6 +51,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
     if not _guard(update):
         return
     q = update.callback_query
+    if not _is_master(context):
+        await q.answer("⛔ Yeh feature sirf Master Bot me hai.", show_alert=True)
+        return
     await q.answer()
     parts = action.split(":")
     key = parts[0]
@@ -184,6 +196,62 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
             "Accept/Invite-link message ke liye Photo ya Video bhejo.\nHatane ke liye 'remove' type karo.",
             reply_markup=kb.cancel_kb(),
         )
+
+    # ---- Clone Bots (Buyers Bot) ----
+    elif key == "clones":
+        await q.edit_message_text(
+            "🤖 <b>Buyers Bot</b>\nYahan jo bhi bot add hoga, usme sirf buyer-flow chalega (courses/payment) — admin panel nahi.",
+            parse_mode=ParseMode.HTML, reply_markup=kb.clones_kb(),
+        )
+
+    elif key == "addclone":
+        _set_state(context, "addclonetoken")
+        await q.edit_message_text(
+            "Naye Buyers Bot ka token bhejo (BotFather se @newbot banake mila hoga):",
+            reply_markup=kb.cancel_kb(),
+        )
+
+    elif key == "delclone":
+        clone_id = parts[1]
+        clone = db.get_clone(clone_id)
+        if clone:
+            stop_fn = context.bot_data.get("stop_clone_fn")
+            if stop_fn:
+                await stop_fn(clone["token"])
+            db.delete_clone(clone_id)
+        await q.edit_message_text("Buyers Bot band karke hata diya gaya.", reply_markup=kb.clones_kb())
+
+    # ---- Broadcast ----
+    elif key == "broadcast":
+        _set_state(context, "broadcast_text")
+        total = db.count_users()
+        await q.edit_message_text(
+            f"📢 Broadcast bhejne wale hain <b>{total} users</b> ko.\n\n"
+            "Pehle message likho/bhejo (bold text, emoji sab chalega):",
+            parse_mode=ParseMode.HTML, reply_markup=kb.cancel_kb(),
+        )
+
+    elif key == "bcbtn":
+        choice = parts[1]
+        data = context.user_data.get("adm_data", {})
+        if choice == "yes":
+            _set_state(context, "broadcast_button_label", bc_text=data.get("bc_text", ""))
+            await q.edit_message_text("Button ka text likho (e.g. 'Join Now'):", reply_markup=kb.cancel_kb())
+        else:
+            _set_state(context, "broadcast_protect", bc_text=data.get("bc_text", ""))
+            await q.edit_message_text("Forward/Copy allow karna hai ya band?", reply_markup=kb.broadcast_protect_kb())
+
+    elif key == "bcprotect":
+        choice = parts[1]
+        data = context.user_data.get("adm_data", {})
+        protect = choice == "yes"
+        bc_text = data.get("bc_text", "")
+        btn_label = data.get("bc_btn_label")
+        btn_url = data.get("bc_btn_url")
+        _clear_state(context)
+        await q.edit_message_text("📤 Broadcast bheja ja raha hai, thodi der lagegi...")
+        sent, failed = await _run_broadcast(context, bc_text, btn_label, btn_url, protect)
+        await context.bot.send_message(q.message.chat_id, f"✅ Broadcast complete!\nSuccessful: {sent} | Failed: {failed}", reply_markup=kb.admin_main_kb())
 
     # ---- Orders ----
     elif key == "pending":
@@ -345,6 +413,48 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("✅ Item rename ho gaya.", reply_markup=kb.admin_item_manage_kb(data["item_id"], data["course_id"]))
         return True
 
+    if state == "broadcast_text" and text:
+        _set_state(context, "broadcast_button_choice", bc_text=text)
+        await update.message.reply_text("Message set ho gaya ✅\nKya isme ek button (link ke saath) add karna hai?", reply_markup=kb.broadcast_button_choice_kb())
+        return True
+
+    if state == "broadcast_button_label" and update.message.text:
+        data["bc_btn_label"] = update.message.text.strip()
+        _set_state(context, "broadcast_button_url", **data)
+        await update.message.reply_text("Ab button ka link daalo (https:// se shuru karke):", reply_markup=kb.cancel_kb())
+        return True
+
+    if state == "broadcast_button_url" and update.message.text:
+        url = update.message.text.strip()
+        if not (url.startswith("http://") or url.startswith("https://")):
+            await update.message.reply_text("Link https:// ya http:// se shuru hona chahiye. Dubara bhejo:")
+            return True
+        data["bc_btn_url"] = url
+        _set_state(context, "broadcast_protect", **data)
+        await update.message.reply_text("Forward/Copy allow karna hai ya band?", reply_markup=kb.broadcast_protect_kb())
+        return True
+
+    if state == "addclonetoken" and update.message.text:
+        token = update.message.text.strip()
+        try:
+            test_bot = Bot(token)
+            me = await test_bot.get_me()
+        except Exception:
+            await update.message.reply_text("❌ Yeh token invalid lag raha hai. Sahi token BotFather se copy karke dubara bhejo.")
+            return True
+        db.add_clone(token, me.username)
+        start_fn = context.bot_data.get("start_clone_fn")
+        if start_fn:
+            await start_fn(token)
+        _clear_state(context)
+        await update.message.reply_text(
+            f"✅ Buyers Bot live ho gaya: @{me.username}\n\n"
+            f"⚠️ Zaroori: is bot ko bhi apne target groups me <b>Admin</b> banao, warna is bot se aane wale orders "
+            f"ke liye invite-link nahi ban payega.",
+            parse_mode=ParseMode.HTML, reply_markup=kb.admin_settings_kb(),
+        )
+        return True
+
     if state == "setcaption" and text:
         db.update_item_caption(data["item_id"], update.message.caption_html or text)
         _clear_state(context)
@@ -445,3 +555,23 @@ async def handle_admin_media(update: Update, context: ContextTypes.DEFAULT_TYPE)
         return True
 
     return False
+
+
+async def _run_broadcast(context: ContextTypes.DEFAULT_TYPE, text: str, btn_label, btn_url, protect: bool):
+    """Saare users ko ek-ek karke broadcast bhejta hai. Sent/Failed count return karta hai."""
+    markup = None
+    if btn_label and btn_url:
+        markup = InlineKeyboardMarkup([[InlineKeyboardButton(btn_label, url=btn_url)]])
+
+    sent, failed = 0, 0
+    for user_id in db.list_user_ids():
+        try:
+            await context.bot.send_message(
+                user_id, text, parse_mode=ParseMode.HTML,
+                reply_markup=markup, protect_content=protect,
+            )
+            sent += 1
+        except Exception:
+            failed += 1
+        await asyncio.sleep(0.05)  # Telegram rate-limit safe
+    return sent, failed

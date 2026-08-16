@@ -52,8 +52,16 @@ def admin_main_kb():
         InlineKeyboardButton("👥 Manage Groups", callback_data="adm:groups"),
         InlineKeyboardButton("⚙️ Settings", callback_data="adm:settings"),
         InlineKeyboardButton("🕓 Pending Orders", callback_data="adm:pending"),
+        InlineKeyboardButton("📢 Broadcast", callback_data="adm:broadcast"),
     ]
     return InlineKeyboardMarkup(_grid(buttons))
+
+
+def clones_kb():
+    rows = [[InlineKeyboardButton(f"🗑 @{c['label']}", callback_data=f"adm:delclone:{c['_id']}")] for c in db.list_clones()]
+    rows.append([InlineKeyboardButton("➕ Add Buyers Bot", callback_data="adm:addclone")])
+    rows.append([InlineKeyboardButton("🔙 Back", callback_data="adm:settings")])
+    return InlineKeyboardMarkup(rows)
 
 
 def admin_courses_kb():
@@ -124,9 +132,26 @@ def admin_settings_kb():
         InlineKeyboardButton("Reject Text", callback_data="adm:set:reject_message"),
     ]
     rows = _grid(grid_buttons)
+    rows.append([InlineKeyboardButton("🤖 Buyers Bot", callback_data="adm:clones")])
     rows.append([InlineKeyboardButton("🔙 Back", callback_data="adm:main")])
     return InlineKeyboardMarkup(rows)
 
 
 def cancel_kb():
     return InlineKeyboardMarkup([[InlineKeyboardButton("✖️ Cancel", callback_data="adm:cancel")]])
+
+
+def broadcast_button_choice_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("➕ Button Add Karo", callback_data="adm:bcbtn:yes")],
+        [InlineKeyboardButton("⏭ Skip (bina button)", callback_data="adm:bcbtn:no")],
+        [InlineKeyboardButton("✖️ Cancel", callback_data="adm:cancel")],
+    ])
+
+
+def broadcast_protect_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔒 Forward/Copy BAND karo", callback_data="adm:bcprotect:yes")],
+        [InlineKeyboardButton("🔓 Allow karo", callback_data="adm:bcprotect:no")],
+        [InlineKeyboardButton("✖️ Cancel", callback_data="adm:cancel")],
+    ])

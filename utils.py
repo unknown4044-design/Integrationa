@@ -5,6 +5,7 @@ utils.py -- Helper functions:
 """
 
 import asyncio
+import hashlib
 import io
 import os
 import random
@@ -23,6 +24,11 @@ ADMIN_IDS = set(
 
 def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
+
+
+def clone_path_id(token: str) -> str:
+    """Bot token ko ek chhote, safe URL-path me convert karta hai (asli token URL me kabhi nahi jaata)."""
+    return hashlib.sha256(token.encode()).hexdigest()[:20]
 
 
 def generate_unique_amount(base_price: float) -> float:

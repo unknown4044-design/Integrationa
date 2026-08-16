@@ -45,6 +45,8 @@ async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
+    user = update.effective_user
+    db.upsert_user(user.id, user.username, user.full_name)
     await utils.animate_progress(context.bot, update.effective_chat.id, label="✨ Loading Courses")
     await send_welcome(update.effective_chat.id, context)
 
