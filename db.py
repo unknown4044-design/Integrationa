@@ -238,6 +238,16 @@ def list_pending_orders():
     return list(orders.find({"status": "pending"}).sort("created_at", 1))
 
 
+def clear_pending_orders_for_bot(bot_key):
+    """Bot delete hone par uske saare abhi-tak-pending orders ko 'abandoned' kar deta hai,
+    taaki woh Master ke Pending Orders count/list se hamesha ke liye hat jayein
+    (kyunki delete hue bot se ab kabhi link nahi bheja ja sakta)."""
+    orders.update_many(
+        {"bot_key": bot_key, "status": {"$in": ["pending", "awaiting_payment"]}},
+        {"$set": {"status": "abandoned", "updated_at": int(time.time())}},
+    )
+
+
 # ---------------- Users (broadcast ke liye) ----------------
 
 def upsert_user(user_id, username, full_name, bot_key=None):

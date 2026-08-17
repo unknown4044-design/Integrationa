@@ -218,8 +218,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
             stop_fn = context.bot_data.get("stop_clone_fn")
             if stop_fn:
                 await stop_fn(clone["token"])
+            db.clear_pending_orders_for_bot(utils.clone_path_id(clone["token"]))
             db.delete_clone(clone_id)
-        await q.edit_message_text("Buyers Bot band karke hata diya gaya.", reply_markup=kb.clones_kb())
+        await q.edit_message_text("Buyers Bot band karke hata diya gaya, uske pending orders bhi clear kar diye.", reply_markup=kb.clones_kb())
 
     # ---- Broadcast ----
     elif key == "broadcast":
@@ -263,6 +264,7 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
         all_bots = context.bot_data.get("all_bots", {})
         sent_via = {}
         skipped = 0
+        auto_cleared = 0
         for o in pend:
             order_id = str(o["_id"])
             caption = utils.build_order_caption(o, status_label="Pending")
@@ -274,7 +276,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
                 target_bot = origin_app.bot if origin_app else None
                 label = f"@{origin_app.bot.username}" if origin_app else None
             if not target_bot:
-                skipped += 1
+                # Iska bot ab exist hi nahi karta (delete ho chuka) -- hamesha ke liye clear karo
+                db.update_order_status(order_id, "abandoned")
+                auto_cleared += 1
                 continue
             if o.get("screenshot_file_id"):
                 msg = await utils.safe_send_photo(target_bot, q.message.chat_id, o["screenshot_file_id"], caption, reply_markup=kb.admin_review_kb(order_id))
@@ -286,6 +290,8 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
             else:
                 skipped += 1
         lines = [f"• {v} order(s) → {k} ke chat me bheje gaye" for k, v in sent_via.items()]
+        if auto_cleared:
+            lines.append(f"🗑 {auto_cleared} order(s) delete-ho-chuke bot ke the, clear kar diye gaye.")
         if skipped:
             lines.append(f"⚠️ {skipped} order(s) nahi bhej paye (uss bot se pehle kabhi chat nahi hui — pehle uspar ek baar /start karo).")
         await q.edit_message_text(
