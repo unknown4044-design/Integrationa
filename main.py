@@ -91,6 +91,7 @@ async def on_bot_chat_membership_changed(update: Update, context):
     if not result:
         return
     chat = result.chat
+    chat_name = chat.title or (f"@{chat.username}" if chat.username else str(chat.id))
     old_status = result.old_chat_member.status
     new_status = result.new_chat_member.status
     joined = old_status in ("left", "kicked") and new_status in ("member", "administrator")
@@ -99,12 +100,12 @@ async def on_bot_chat_membership_changed(update: Update, context):
     if joined:
         existing = db.get_group_by_chat_id(chat.id)
         if not existing:
-            db.add_group(chat.title or str(chat.id), chat.id)
+            db.add_group(chat_name, chat.id)
             for admin_id in utils.ADMIN_IDS:
                 try:
                     await context.bot.send_message(
                         admin_id,
-                        f"✅ Naya group/channel add ho gaya:\n<b>{chat.title}</b>\n"
+                        f"✅ Naya group/channel add ho gaya:\n<b>{chat_name}</b>\n"
                         f"⚠️ Invite-link banane ke liye bot ko yahan <b>Admin</b> rakho.",
                         parse_mode="HTML",
                     )
@@ -117,7 +118,7 @@ async def on_bot_chat_membership_changed(update: Update, context):
             for admin_id in utils.ADMIN_IDS:
                 try:
                     await context.bot.send_message(
-                        admin_id, f"⚠️ Bot ko <b>{chat.title}</b> se hata diya gaya, group list se bhi hata diya gaya.",
+                        admin_id, f"⚠️ Bot ko <b>{chat_name}</b> se hata diya gaya, group list se bhi hata diya gaya.",
                         parse_mode="HTML",
                     )
                 except Exception:
