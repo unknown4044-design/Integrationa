@@ -174,7 +174,7 @@ def delete_group(group_id):
 
 # ---------------- Orders ----------------
 
-def create_order(user_id, username, full_name, item_id, item_name, base_amount, final_amount):
+def create_order(user_id, username, full_name, item_id, item_name, base_amount, final_amount, bot_key=None):
     now = int(time.time())
     doc = {
         "user_id": user_id,
@@ -187,6 +187,7 @@ def create_order(user_id, username, full_name, item_id, item_name, base_amount, 
         "status": "awaiting_payment",
         "screenshot_file_id": None,
         "admin_msg_refs": [],
+        "bot_key": bot_key,
         "created_at": now,
         "updated_at": now,
     }
@@ -239,10 +240,10 @@ def list_pending_orders():
 
 # ---------------- Users (broadcast ke liye) ----------------
 
-def upsert_user(user_id, username, full_name):
+def upsert_user(user_id, username, full_name, bot_key=None):
     users.update_one(
         {"_id": user_id},
-        {"$set": {"username": username, "full_name": full_name},
+        {"$set": {"username": username, "full_name": full_name, "bot_key": bot_key},
          "$setOnInsert": {"first_seen": int(time.time())}},
         upsert=True,
     )
@@ -250,6 +251,10 @@ def upsert_user(user_id, username, full_name):
 
 def list_user_ids():
     return [u["_id"] for u in users.find({}, {"_id": 1})]
+
+
+def list_users():
+    return list(users.find({}))
 
 
 def count_users():

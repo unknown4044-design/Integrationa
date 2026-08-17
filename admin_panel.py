@@ -259,16 +259,39 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
         if not pend:
             await q.edit_message_text("Koi pending order nahi hai.", reply_markup=kb.admin_main_kb())
             return
-        await q.edit_message_text(f"🕓 {len(pend)} Pending Order(s) neeche bheje ja rahe hain:", reply_markup=kb.admin_main_kb())
+        master_key = utils.clone_path_id(context.bot.token)
+        all_bots = context.bot_data.get("all_bots", {})
+        sent_via = {}
+        skipped = 0
         for o in pend:
             order_id = str(o["_id"])
             caption = utils.build_order_caption(o, status_label="Pending")
-            if o.get("screenshot_file_id"):
-                msg = await utils.safe_send_photo(context.bot, q.message.chat_id, o["screenshot_file_id"], caption, reply_markup=kb.admin_review_kb(order_id))
+            bot_key = o.get("bot_key") or master_key
+            if bot_key == master_key:
+                target_bot, label = context.bot, "Master Bot"
             else:
-                msg = await utils.safe_send_message(context.bot, q.message.chat_id, caption, reply_markup=kb.admin_review_kb(order_id))
+                origin_app = all_bots.get(bot_key)
+                target_bot = origin_app.bot if origin_app else None
+                label = f"@{origin_app.bot.username}" if origin_app else None
+            if not target_bot:
+                skipped += 1
+                continue
+            if o.get("screenshot_file_id"):
+                msg = await utils.safe_send_photo(target_bot, q.message.chat_id, o["screenshot_file_id"], caption, reply_markup=kb.admin_review_kb(order_id))
+            else:
+                msg = await utils.safe_send_message(target_bot, q.message.chat_id, caption, reply_markup=kb.admin_review_kb(order_id))
             if msg:
                 db.append_admin_msg_ref(order_id, msg.chat_id, msg.message_id)
+                sent_via[label] = sent_via.get(label, 0) + 1
+            else:
+                skipped += 1
+        lines = [f"• {v} order(s) → {k} ke chat me bheje gaye" for k, v in sent_via.items()]
+        if skipped:
+            lines.append(f"⚠️ {skipped} order(s) nahi bhej paye (uss bot se pehle kabhi chat nahi hui — pehle uspar ek baar /start karo).")
+        await q.edit_message_text(
+            f"🕓 {len(pend)} Pending Order(s) mil gaye.\n" + "\n".join(lines),
+            reply_markup=kb.admin_main_kb(),
+        )
 
 
 # ---------------- Order review (accept / reject / group select) ----------------
@@ -558,16 +581,25 @@ async def handle_admin_media(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def _run_broadcast(context: ContextTypes.DEFAULT_TYPE, text: str, btn_label, btn_url, protect: bool):
-    """Saare users ko ek-ek karke broadcast bhejta hai. Sent/Failed count return karta hai."""
+    """Saare users ko unke apne bot (jis se woh aaye the) ke through broadcast bhejta hai.
+    Sent/Failed count return karta hai."""
     markup = None
     if btn_label and btn_url:
         markup = InlineKeyboardMarkup([[InlineKeyboardButton(btn_label, url=btn_url)]])
 
+    master_key = utils.clone_path_id(context.bot.token)
+    all_bots = context.bot_data.get("all_bots", {})
+
     sent, failed = 0, 0
-    for user_id in db.list_user_ids():
+    for u in db.list_users():
+        bot_key = u.get("bot_key") or master_key
+        target_bot = context.bot if bot_key == master_key else (all_bots.get(bot_key).bot if all_bots.get(bot_key) else None)
+        if not target_bot:
+            failed += 1
+            continue
         try:
-            await context.bot.send_message(
-                user_id, text, parse_mode=ParseMode.HTML,
+            await target_bot.send_message(
+                u["_id"], text, parse_mode=ParseMode.HTML,
                 reply_markup=markup, protect_content=protect,
             )
             sent += 1

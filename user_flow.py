@@ -84,7 +84,7 @@ async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
     user = update.effective_user
-    db.upsert_user(user.id, user.username, user.full_name)
+    db.upsert_user(user.id, user.username, user.full_name, bot_key=utils.clone_path_id(context.bot.token))
     await utils.animate_progress(context.bot, update.effective_chat.id, label="✨ Loading Courses")
     await send_welcome(update.effective_chat.id, context)
 
@@ -210,6 +210,7 @@ async def start_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, ite
         user_id=user.id, username=user.username, full_name=user.full_name,
         item_id=item_id, item_name=item["name"],
         base_amount=item["price"], final_amount=final_amount,
+        bot_key=utils.clone_path_id(context.bot.token),
     )
     upi_link = utils.build_upi_link(final_amount, note=f"Order{order_id[-6:]}")
     qr_bytes = utils.generate_qr_bytes(upi_link)

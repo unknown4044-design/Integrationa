@@ -207,6 +207,7 @@ async def run():
     master_app = build_master_app(BOT_TOKEN)
     master_app.bot_data["start_clone_fn"] = start_clone_fn
     master_app.bot_data["stop_clone_fn"] = stop_clone_fn
+    master_app.bot_data["all_bots"] = applications  # Broadcast/Pending-Orders ke liye -- kisi bhi bot ko find karke uske through message bhej sakte hain
     await _register(master_app)
     await master_app.bot.set_my_commands([BotCommand("start", "Courses dekho")], scope=BotCommandScopeDefault())
     for admin_id in utils.ADMIN_IDS:
