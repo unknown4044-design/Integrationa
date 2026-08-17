@@ -17,7 +17,7 @@ import logging
 import os
 
 from aiohttp import web
-from telegram import BotCommand, BotCommandScopeChat, BotCommandScopeDefault, Update
+from telegram import BotCommand, BotCommandScopeChat, Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, ChatMemberHandler, filters
 
 import db
@@ -209,11 +209,10 @@ async def run():
     master_app.bot_data["stop_clone_fn"] = stop_clone_fn
     master_app.bot_data["all_bots"] = applications  # Broadcast/Pending-Orders ke liye -- kisi bhi bot ko find karke uske through message bhej sakte hain
     await _register(master_app)
-    await master_app.bot.set_my_commands([BotCommand("start", "Courses dekho")], scope=BotCommandScopeDefault())
     for admin_id in utils.ADMIN_IDS:
         try:
             await master_app.bot.set_my_commands(
-                [BotCommand("start", "Courses dekho"), BotCommand("admin", "Admin Panel kholo")],
+                [BotCommand("admin", "Admin Panel kholo")],
                 scope=BotCommandScopeChat(chat_id=admin_id),
             )
         except Exception:
