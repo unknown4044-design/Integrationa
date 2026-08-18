@@ -9,6 +9,8 @@ Har user ka apna alag context.user_data hota hai, isliye "har user ka panel alag
 NOTE: Course/Item list "delete + naya message bhejo" tarike se navigate hoti hai
 (edit_message_text nahi) kyunki agar pichla message photo/video (banner) tha to
 usme "text" hota hi nahi -- sirf "caption" hota hai, edit_message_text fail ho jaata.
+Purana message delete karna "fire-and-forget" (background) hota hai -- naya message
+bhejne ke liye uska wait nahi karte, isse buttons ka response fast lagta hai.
 
 NOTE (speed): Master bot ka banner file_id, Buyer/clone bot se seedha kaam nahi karta
 (Telegram rule). Pehli baar Master se download+upload karke naya file_id milta hai,
@@ -16,6 +18,7 @@ uske baad woh MongoDB me cache ho jaata hai -- agli baar se turant (bina downloa
 hai, isliye zyada load nahi padta.
 """
 
+import asyncio
 import time
 
 from telegram import Update
@@ -31,9 +34,42 @@ ORDER_TIMEOUT_SECONDS = 300  # 5 minute
 TIMER_UPDATE_EVERY = 15      # kitni der me caption me timer refresh ho (Telegram rate-limit safe)
 
 
+def _fire_delete(message):
+    """Purana message background me delete karta hai -- iska wait nahi karte, isse
+    naya message turant bhej sakte hain (fast response, koi extra latency nahi)."""
+    async def _do():
+        try:
+            await message.delete()
+        except Exception:
+            pass
+    asyncio.create_task(_do())
+
+
+def _fire_pin_and_clean(context, msg):
+    """Naya message pin karke, uske "pinned message" wale system notification ko
+    background me hata deta hai -- user ke response ko block nahi karta (fast)."""
+    if not msg:
+        return
+
+    async def _do():
+        try:
+            await context.bot.pin_chat_message(msg.chat_id, msg.message_id, disable_notification=True)
+        except Exception:
+            return
+        # Pin hote hi Telegram ek chhota "pinned a message" system-notification bhejta hai,
+        # jiski ID hamesha pinned message ke turant baad hoti hai -- usse turant hata dete hain.
+        try:
+            await context.bot.delete_message(msg.chat_id, msg.message_id + 1)
+        except Exception:
+            pass
+
+    asyncio.create_task(_do())
+
+
 async def _send_media(context, chat_id, source_file_id, media_type, caption, markup):
-    """Photo/Video safely bhejta hai -- Master bot pe seedha, Buyer/clone bot pe cache-first
-    (fast) tarike se, aur fail hone par plain text caption pe fallback karta hai."""
+    """Photo/Video safely bhejta hai (aur bheja hua Message object return karta hai) --
+    Master bot pe seedha, Buyer/clone bot pe cache-first (fast) tarike se, aur fail hone
+    par plain text caption pe fallback karta hai."""
     is_master = bool(context.bot_data.get("is_master"))
     bot = context.bot
 
@@ -47,8 +83,7 @@ async def _send_media(context, chat_id, source_file_id, media_type, caption, mar
         else:
             fetched = await utils.refetch_file_bytes(source_file_id)
             if fetched is None:
-                await utils.safe_send_message(bot, chat_id, caption, reply_markup=markup)
-                return
+                return await utils.safe_send_message(bot, chat_id, caption, reply_markup=markup)
             if media_type == "photo":
                 result = await utils.safe_send_photo(bot, chat_id, fetched, caption, reply_markup=markup)
                 if result and result.photo:
@@ -57,12 +92,12 @@ async def _send_media(context, chat_id, source_file_id, media_type, caption, mar
                 result = await utils.safe_send_video(bot, chat_id, fetched, caption, reply_markup=markup)
                 if result and result.video:
                     db.set_cached_file_id(bot_key, source_file_id, result.video.file_id)
-            return
+            return result
 
     if media_type == "photo":
-        await utils.safe_send_photo(bot, chat_id, source, caption, reply_markup=markup)
+        return await utils.safe_send_photo(bot, chat_id, source, caption, reply_markup=markup)
     else:
-        await utils.safe_send_video(bot, chat_id, source, caption, reply_markup=markup)
+        return await utils.safe_send_video(bot, chat_id, source, caption, reply_markup=markup)
 
 
 async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
@@ -76,9 +111,11 @@ async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
     file_id = settings.get("welcome_media_file_id")
 
     if media_type in ("photo", "video") and file_id:
-        await _send_media(context, chat_id, file_id, media_type, caption, markup)
+        msg = await _send_media(context, chat_id, file_id, media_type, caption, markup)
     else:
-        await utils.safe_send_message(context.bot, chat_id, caption, reply_markup=markup)
+        msg = await utils.safe_send_message(context.bot, chat_id, caption, reply_markup=markup)
+
+    _fire_pin_and_clean(context, msg)
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -92,10 +129,7 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def show_courses(update: Update, context: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
-    try:
-        await q.message.delete()
-    except Exception:
-        pass
+    _fire_delete(q.message)
     await send_welcome(q.message.chat_id, context)
 
 
@@ -107,14 +141,16 @@ async def show_items(update: Update, context: ContextTypes.DEFAULT_TYPE, course_
         return
     await q.answer()
     markup = kb.items_kb(course_id)
-    try:
-        await q.message.delete()
-    except Exception:
-        pass
-    await utils.safe_send_message(
-        context.bot, q.message.chat_id,
-        f"📚 <b>{course['name']}</b>\nNeeche se select karo:", reply_markup=markup,
-    )
+    caption = course.get("caption") or f"📚 <b>{course['name']}</b>\nNeeche se select karo:"
+
+    _fire_delete(q.message)
+
+    file_id = course.get("media_file_id")
+    media_type = course.get("media_type")
+    if file_id and media_type in ("photo", "video"):
+        await _send_media(context, q.message.chat_id, file_id, media_type, caption, markup)
+    else:
+        await utils.safe_send_message(context.bot, q.message.chat_id, caption, reply_markup=markup)
 
 
 async def show_item_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, item_id: str):
@@ -127,10 +163,7 @@ async def show_item_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, i
     markup = kb.item_detail_kb(item_id, item["course_id"])
 
     await q.answer()
-    try:
-        await q.message.delete()
-    except Exception:
-        pass
+    _fire_delete(q.message)
 
     file_id = item.get("media_file_id")
     media_type = item.get("media_type")
@@ -265,7 +298,7 @@ async def on_screenshot_received(update: Update, context: ContextTypes.DEFAULT_T
     db.set_order_screenshot(order_id, photo.file_id)
 
     pending_msg = db.get_setting("pending_message", "Aapka payment verify ho raha hai ✅")
-    await update.message.reply_text(pending_msg)
+    await utils.safe_send_message(context.bot, update.effective_chat.id, pending_msg)
 
     caption = utils.build_order_caption(db.get_order(order_id), status_label="Pending")
     for admin_id in utils.ADMIN_IDS:

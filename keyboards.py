@@ -85,6 +85,8 @@ def admin_course_manage_kb(course_id):
     rows = _grid(buttons)
     rows.append([InlineKeyboardButton("➕ Add Item/Batch", callback_data=f"adm:additem:{course_id}")])
     rows.append([InlineKeyboardButton("✏️ Rename Course", callback_data=f"adm:renamecourse:{course_id}")])
+    rows.append([InlineKeyboardButton("🖼 Set Course Banner", callback_data=f"adm:setcoursebanner:{course_id}")])
+    rows.append([InlineKeyboardButton("📝 Set Course Caption", callback_data=f"adm:setcoursecaption:{course_id}")])
     toggle_label = "⛔ Disable Course" if active else "✅ Enable Course"
     rows.append([InlineKeyboardButton(toggle_label, callback_data=f"adm:togglecourse:{course_id}")])
     rows.append([InlineKeyboardButton("🗑 Delete Course", callback_data=f"adm:delcourse:{course_id}")])

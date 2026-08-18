@@ -97,6 +97,14 @@ def update_course_name(course_id, name):
     courses.update_one({"_id": ObjectId(course_id)}, {"$set": {"name": name}})
 
 
+def update_course_caption(course_id, caption):
+    courses.update_one({"_id": ObjectId(course_id)}, {"$set": {"caption": caption}})
+
+
+def update_course_media(course_id, media_type, file_id):
+    courses.update_one({"_id": ObjectId(course_id)}, {"$set": {"media_type": media_type, "media_file_id": file_id}})
+
+
 def delete_course(course_id):
     items.delete_many({"course_id": course_id})
     courses.delete_one({"_id": ObjectId(course_id)})

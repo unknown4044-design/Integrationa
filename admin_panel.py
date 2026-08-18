@@ -107,6 +107,19 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
         _set_state(context, "renamecourse", course_id=course_id)
         await q.edit_message_text("Course ka naya naam type karo:", reply_markup=kb.cancel_kb())
 
+    elif key == "setcoursebanner":
+        course_id = parts[1]
+        _set_state(context, "setcoursebanner", course_id=course_id)
+        await q.edit_message_text("Course list page ke liye Photo ya Video banner bhejo:", reply_markup=kb.cancel_kb())
+
+    elif key == "setcoursecaption":
+        course_id = parts[1]
+        _set_state(context, "setcoursecaption", course_id=course_id)
+        await q.edit_message_text(
+            "Caption type/bhejo (Bold text aur Telegram Premium emoji waise hi likh sakte ho, jaisa dikhega waisa hi save hoga):",
+            reply_markup=kb.cancel_kb(),
+        )
+
     elif key == "item":
         item_id = parts[1]
         item = db.get_item(item_id)
@@ -435,6 +448,12 @@ async def handle_admin_text(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await update.message.reply_text("✅ Course rename ho gaya.", reply_markup=kb.admin_course_manage_kb(data["course_id"]))
         return True
 
+    if state == "setcoursecaption" and text:
+        db.update_course_caption(data["course_id"], update.message.caption_html or text)
+        _clear_state(context)
+        await update.message.reply_text("✅ Course caption save ho gaya.", reply_markup=kb.admin_course_manage_kb(data["course_id"]))
+        return True
+
     if state == "renameitem" and update.message.text:
         db.update_item_name(data["item_id"], update.message.text.strip())
         _clear_state(context)
@@ -580,6 +599,17 @@ async def handle_admin_media(update: Update, context: ContextTypes.DEFAULT_TYPE)
         _clear_state(context)
         item = db.get_item(data["item_id"])
         await update.message.reply_text("✅ Banner save ho gaya.", reply_markup=kb.admin_item_manage_kb(data["item_id"], item["course_id"]))
+        return True
+
+    if state == "setcoursebanner":
+        if update.message.photo:
+            db.update_course_media(data["course_id"], "photo", update.message.photo[-1].file_id)
+        elif update.message.video:
+            db.update_course_media(data["course_id"], "video", update.message.video.file_id)
+        else:
+            return False
+        _clear_state(context)
+        await update.message.reply_text("✅ Course banner save ho gaya.", reply_markup=kb.admin_course_manage_kb(data["course_id"]))
         return True
 
     return False
