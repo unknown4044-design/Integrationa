@@ -45,25 +45,24 @@ def _fire_delete(message):
     asyncio.create_task(_do())
 
 
-def _fire_pin_and_clean(context, msg):
-    """Naya message pin karke, uske "pinned message" wale system notification ko
-    background me hata deta hai -- user ke response ko block nahi karta (fast)."""
+async def _pin_and_clean(context, msg):
+    """Naya message pin karke, uske "pinned message" wale system notification ko hata deta
+    hai. Yeh turant (sequentially) chalta hai -- background me nahi -- kyunki agar isi ke
+    turant baad koi aur message (jaise invite-link) bheja jaye, to background-wali delete
+    kabhi-kabhi galti se woh agla message hi delete kar deti thi (race condition). Yeh 2
+    extra API calls hain (~0.3-0.5 sec), sahi order guarantee karne ke liye zaroori hai."""
     if not msg:
         return
-
-    async def _do():
-        try:
-            await context.bot.pin_chat_message(msg.chat_id, msg.message_id, disable_notification=True)
-        except Exception:
-            return
-        # Pin hote hi Telegram ek chhota "pinned a message" system-notification bhejta hai,
-        # jiski ID hamesha pinned message ke turant baad hoti hai -- usse turant hata dete hain.
-        try:
-            await context.bot.delete_message(msg.chat_id, msg.message_id + 1)
-        except Exception:
-            pass
-
-    asyncio.create_task(_do())
+    try:
+        await context.bot.pin_chat_message(msg.chat_id, msg.message_id, disable_notification=True)
+    except Exception:
+        return
+    # Pin hote hi Telegram ek chhota "pinned a message" system-notification bhejta hai,
+    # jiski ID hamesha pinned message ke turant baad hoti hai -- usse turant hata dete hain.
+    try:
+        await context.bot.delete_message(msg.chat_id, msg.message_id + 1)
+    except Exception:
+        pass
 
 
 async def _send_media(context, chat_id, source_file_id, media_type, caption, markup):
@@ -115,7 +114,7 @@ async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
     else:
         msg = await utils.safe_send_message(context.bot, chat_id, caption, reply_markup=markup)
 
-    _fire_pin_and_clean(context, msg)
+    await _pin_and_clean(context, msg)
 
 
 async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE):
