@@ -405,7 +405,7 @@ async def review_group_selected(update: Update, context: ContextTypes.DEFAULT_TY
 
     accept_msg = db.get_setting("accept_message", "Payment Accepted!")
     support = db.get_setting("support_contact", "")
-    user_text = f"{accept_msg}\n\n🔗 {link.invite_link}"
+    user_text = f"{accept_msg}\n\n🔗 {link.invite_link}\n🔗 {link.invite_link}"
     if support:
         user_text += f"\n\nNeed help? Contact: {support}"
 
