@@ -35,6 +35,10 @@ _DEFAULT_SETTINGS = {
         "Payment ho jaane ke baad iska <b>screenshot yahin bhej do</b> — koi button dabane ki zarurat nahi."
     ),
     "pending_message": "Aapka payment verification ke liye bhej diya gaya hai. Thodi der me confirm ho jayega ✅",
+    "expiry_message": (
+        "⏰ <b>Time khatam!</b> Yeh transaction 5 minute me confirm nahi hua isliye close ho gaya.\n"
+        "Agar payment kar chuke ho to turant support se contact karo, warna naya order banao."
+    ),
     "accept_message": "🎉 Payment Accepted! Neeche aapka private access link hai:",
     "reject_message": "❌ Aapka payment verify nahi ho paya. Dobara try karo ya support se contact karo.",
     # Welcome (/start) aur Accept/Invite-link message ke liye optional banner

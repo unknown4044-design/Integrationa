@@ -330,6 +330,23 @@ async def review_accept(update: Update, context: ContextTypes.DEFAULT_TYPE, orde
     await q.edit_message_caption(caption=q.message.caption + "\n\n👉 Kaunsa group access dena hai?", parse_mode=ParseMode.HTML, reply_markup=markup)
 
 
+async def review_back(update: Update, context: ContextTypes.DEFAULT_TYPE, order_id: str):
+    """Group-selection se wapas Accept/Reject wale review screen par le jaata hai."""
+    if not _guard(update):
+        return
+    q = update.callback_query
+    order = db.get_order(order_id)
+    if not order or order["status"] != "pending":
+        await q.answer("Yeh order already process ho chuka hai.", show_alert=True)
+        return
+    await q.answer()
+    caption = utils.build_order_caption(order, status_label="Pending")
+    try:
+        await q.edit_message_caption(caption=caption, parse_mode=ParseMode.HTML, reply_markup=kb.admin_review_kb(order_id))
+    except Exception:
+        pass
+
+
 async def review_reject(update: Update, context: ContextTypes.DEFAULT_TYPE, order_id: str):
     if not _guard(update):
         return

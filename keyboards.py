@@ -43,7 +43,11 @@ def admin_review_kb(order_id):
 
 def groups_kb(order_id):
     buttons = [InlineKeyboardButton(g["name"], callback_data=f"grp:{order_id}:{g['_id']}") for g in db.list_groups()]
-    return InlineKeyboardMarkup(_grid(buttons)) if buttons else None
+    if not buttons:
+        return None
+    rows = _grid(buttons)
+    rows.append([InlineKeyboardButton("🔙 Back", callback_data=f"backreview:{order_id}")])
+    return InlineKeyboardMarkup(rows)
 
 
 def admin_main_kb():
@@ -127,6 +131,7 @@ def admin_settings_kb():
         InlineKeyboardButton("Variation Range", callback_data="adm:set:variation"),
         InlineKeyboardButton("QR Instructions", callback_data="adm:set:done_instructions"),
         InlineKeyboardButton("📸 Screenshot-Received Text", callback_data="adm:set:pending_message"),
+        InlineKeyboardButton("⏰ Payment Time-Out Text", callback_data="adm:set:expiry_message"),
         InlineKeyboardButton("🖼 Welcome Banner", callback_data="adm:setwelcomebanner"),
         InlineKeyboardButton("📝 Welcome Text", callback_data="adm:set:welcome_caption"),
         InlineKeyboardButton("🖼 Accept Banner", callback_data="adm:setacceptbanner"),

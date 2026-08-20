@@ -63,6 +63,8 @@ async def callback_router(update: Update, context):
         await admin_panel.review_accept(update, context, data.split(":", 1)[1])
     elif data.startswith("reject:"):
         await admin_panel.review_reject(update, context, data.split(":", 1)[1])
+    elif data.startswith("backreview:"):
+        await admin_panel.review_back(update, context, data.split(":", 1)[1])
     elif data.startswith("grp:"):
         _, order_id, group_id = data.split(":")
         await admin_panel.review_group_selected(update, context, order_id, group_id)
