@@ -111,7 +111,11 @@ async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
     media_type = settings.get("welcome_media_type")
     file_id = settings.get("welcome_media_file_id")
 
-    protect = utils.protect_enabled()
+    # NOTE: Welcome message hamesha PIN hota hai, matlab woh chat me hamesha (top par)
+    # dikhta rehta hai chahe user kahin bhi scroll kare. Agar isko protect kiya jaye to
+    # Telegram poori chat-screen ka screenshot hi block kar deta hai (chahe QR jaisa
+    # unprotected message neeche ho) -- isliye Welcome ko jaan-boojhkar protect NAHI karte.
+    protect = False
     if media_type in ("photo", "video") and file_id:
         msg = await _send_media(context, chat_id, file_id, media_type, caption, markup, protect=protect)
     else:
@@ -260,6 +264,7 @@ async def start_purchase(update: Update, context: ContextTypes.DEFAULT_TYPE, ite
         base_caption += f"\nNeed help? Contact: {support}"
 
     await q.answer()
+    _fire_delete(q.message)  # item-detail message hatao taaki QR ke sath screen par koi protected message na ho
     await utils.animate_progress(context.bot, q.message.chat_id, label="🔐 Generating Secure Payment QR")
 
     mins, secs = divmod(ORDER_TIMEOUT_SECONDS, 60)
