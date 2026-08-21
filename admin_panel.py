@@ -375,9 +375,6 @@ async def review_reject(update: Update, context: ContextTypes.DEFAULT_TYPE, orde
             pass
 
     reject_msg = db.get_setting("reject_message", "Payment reject ho gaya.")
-    support = db.get_setting("support_contact", "")
-    if support:
-        reject_msg += f"\n\nNeed help? Contact: {support}"
     await user_flow.send_welcome(order["user_id"], context)
     await utils.safe_send_message(context.bot, order["user_id"], reject_msg, protect_content=utils.protect_enabled())
 
@@ -409,10 +406,7 @@ async def review_group_selected(update: Update, context: ContextTypes.DEFAULT_TY
     await q.answer("Accepted ✅")
 
     accept_msg = db.get_setting("accept_message", "Payment Accepted!")
-    support = db.get_setting("support_contact", "")
     user_text = f"{accept_msg}\n\n🔗 {link.invite_link}\n🔗 {link.invite_link}"
-    if support:
-        user_text += f"\n\nNeed help? Contact: {support}"
 
     media_type = db.get_setting("accept_media_type")
     file_id = db.get_setting("accept_media_file_id")
