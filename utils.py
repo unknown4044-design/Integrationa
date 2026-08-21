@@ -26,6 +26,10 @@ def is_admin(user_id: int) -> bool:
     return user_id in ADMIN_IDS
 
 
+def protect_enabled() -> bool:
+    return db.get_setting("protect_content", "1") == "1"
+
+
 def clone_path_id(token: str) -> str:
     """Bot token ko ek chhote, safe URL-path me convert karta hai (asli token URL me kabhi nahi jaata)."""
     return hashlib.sha256(token.encode()).hexdigest()[:20]

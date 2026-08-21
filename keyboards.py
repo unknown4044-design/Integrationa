@@ -139,6 +139,9 @@ def admin_settings_kb():
         InlineKeyboardButton("Reject Text", callback_data="adm:set:reject_message"),
     ]
     rows = _grid(grid_buttons)
+    protect_on = db.get_setting("protect_content", "1") == "1"
+    protect_label = "🔒 Forward/Copy Protection: ON (tap OFF)" if protect_on else "🔓 Forward/Copy Protection: OFF (tap ON)"
+    rows.append([InlineKeyboardButton(protect_label, callback_data="adm:toggleprotect")])
     rows.append([InlineKeyboardButton("🤖 Buyers Bot", callback_data="adm:clones")])
     rows.append([InlineKeyboardButton("🔙 Back", callback_data="adm:main")])
     return InlineKeyboardMarkup(rows)

@@ -47,6 +47,9 @@ _DEFAULT_SETTINGS = {
     "welcome_media_file_id": None,
     "accept_media_type": None,
     "accept_media_file_id": None,
+    # Forward/Copy/Save protection -- "1" = ON (buyer kuch bhi forward/copy nahi kar sakta,
+    # sirf QR wali photo exclude hai taaki payment ke liye screenshot le sake), "0" = OFF
+    "protect_content": "1",
 }
 
 

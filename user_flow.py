@@ -65,12 +65,14 @@ async def _pin_and_clean(context, msg):
         pass
 
 
-async def _send_media(context, chat_id, source_file_id, media_type, caption, markup):
+async def _send_media(context, chat_id, source_file_id, media_type, caption, markup, protect=None):
     """Photo/Video safely bhejta hai (aur bheja hua Message object return karta hai) --
     Master bot pe seedha, Buyer/clone bot pe cache-first (fast) tarike se, aur fail hone
     par plain text caption pe fallback karta hai."""
     is_master = bool(context.bot_data.get("is_master"))
     bot = context.bot
+    if protect is None:
+        protect = utils.protect_enabled()
 
     if is_master:
         source = source_file_id
@@ -82,21 +84,21 @@ async def _send_media(context, chat_id, source_file_id, media_type, caption, mar
         else:
             fetched = await utils.refetch_file_bytes(source_file_id)
             if fetched is None:
-                return await utils.safe_send_message(bot, chat_id, caption, reply_markup=markup)
+                return await utils.safe_send_message(bot, chat_id, caption, reply_markup=markup, protect_content=protect)
             if media_type == "photo":
-                result = await utils.safe_send_photo(bot, chat_id, fetched, caption, reply_markup=markup)
+                result = await utils.safe_send_photo(bot, chat_id, fetched, caption, reply_markup=markup, protect_content=protect)
                 if result and result.photo:
                     db.set_cached_file_id(bot_key, source_file_id, result.photo[-1].file_id)
             else:
-                result = await utils.safe_send_video(bot, chat_id, fetched, caption, reply_markup=markup)
+                result = await utils.safe_send_video(bot, chat_id, fetched, caption, reply_markup=markup, protect_content=protect)
                 if result and result.video:
                     db.set_cached_file_id(bot_key, source_file_id, result.video.file_id)
             return result
 
     if media_type == "photo":
-        return await utils.safe_send_photo(bot, chat_id, source, caption, reply_markup=markup)
+        return await utils.safe_send_photo(bot, chat_id, source, caption, reply_markup=markup, protect_content=protect)
     else:
-        return await utils.safe_send_video(bot, chat_id, source, caption, reply_markup=markup)
+        return await utils.safe_send_video(bot, chat_id, source, caption, reply_markup=markup, protect_content=protect)
 
 
 async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
@@ -109,10 +111,11 @@ async def send_welcome(chat_id, context: ContextTypes.DEFAULT_TYPE):
     media_type = settings.get("welcome_media_type")
     file_id = settings.get("welcome_media_file_id")
 
+    protect = utils.protect_enabled()
     if media_type in ("photo", "video") and file_id:
-        msg = await _send_media(context, chat_id, file_id, media_type, caption, markup)
+        msg = await _send_media(context, chat_id, file_id, media_type, caption, markup, protect=protect)
     else:
-        msg = await utils.safe_send_message(context.bot, chat_id, caption, reply_markup=markup)
+        msg = await utils.safe_send_message(context.bot, chat_id, caption, reply_markup=markup, protect_content=protect)
 
     await _pin_and_clean(context, msg)
 
@@ -146,10 +149,11 @@ async def show_items(update: Update, context: ContextTypes.DEFAULT_TYPE, course_
 
     file_id = course.get("media_file_id")
     media_type = course.get("media_type")
+    protect = utils.protect_enabled()
     if file_id and media_type in ("photo", "video"):
-        await _send_media(context, q.message.chat_id, file_id, media_type, caption, markup)
+        await _send_media(context, q.message.chat_id, file_id, media_type, caption, markup, protect=protect)
     else:
-        await utils.safe_send_message(context.bot, q.message.chat_id, caption, reply_markup=markup)
+        await utils.safe_send_message(context.bot, q.message.chat_id, caption, reply_markup=markup, protect_content=protect)
 
 
 async def show_item_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, item_id: str):
@@ -166,10 +170,11 @@ async def show_item_detail(update: Update, context: ContextTypes.DEFAULT_TYPE, i
 
     file_id = item.get("media_file_id")
     media_type = item.get("media_type")
+    protect = utils.protect_enabled()
     if file_id and media_type in ("photo", "video"):
-        await _send_media(context, q.message.chat_id, file_id, media_type, caption, markup)
+        await _send_media(context, q.message.chat_id, file_id, media_type, caption, markup, protect=protect)
     else:
-        await utils.safe_send_message(context.bot, q.message.chat_id, caption, reply_markup=markup)
+        await utils.safe_send_message(context.bot, q.message.chat_id, caption, reply_markup=markup, protect_content=protect)
 
 
 def _cancel_jobs(context: ContextTypes.DEFAULT_TYPE, order_id: str):
@@ -193,7 +198,7 @@ async def _expire_order_job(context: ContextTypes.DEFAULT_TYPE):
         pass
     await send_welcome(order["user_id"], context)
     expiry_msg = db.get_setting("expiry_message", "⏰ Time khatam! Yeh transaction close ho gaya.")
-    await utils.safe_send_message(context.bot, order["user_id"], expiry_msg)
+    await utils.safe_send_message(context.bot, order["user_id"], expiry_msg, protect_content=utils.protect_enabled())
 
 
 async def _countdown_job(context: ContextTypes.DEFAULT_TYPE):
@@ -294,7 +299,7 @@ async def on_screenshot_received(update: Update, context: ContextTypes.DEFAULT_T
     db.set_order_screenshot(order_id, photo.file_id)
 
     pending_msg = db.get_setting("pending_message", "Aapka payment verify ho raha hai ✅")
-    await utils.safe_send_message(context.bot, update.effective_chat.id, pending_msg)
+    await utils.safe_send_message(context.bot, update.effective_chat.id, pending_msg, protect_content=utils.protect_enabled())
 
     caption = utils.build_order_caption(db.get_order(order_id), status_label="Pending")
     for admin_id in utils.ADMIN_IDS:

@@ -187,6 +187,11 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, act
     elif key == "settings":
         await q.edit_message_text("⚙️ <b>Settings</b>", parse_mode=ParseMode.HTML, reply_markup=kb.admin_settings_kb())
 
+    elif key == "toggleprotect":
+        current = db.get_setting("protect_content", "1")
+        db.set_setting("protect_content", "0" if current == "1" else "1")
+        await q.edit_message_text("⚙️ <b>Settings</b>", parse_mode=ParseMode.HTML, reply_markup=kb.admin_settings_kb())
+
     elif key == "set":
         setting_key = parts[1]
         if setting_key == "variation":
@@ -374,7 +379,7 @@ async def review_reject(update: Update, context: ContextTypes.DEFAULT_TYPE, orde
     if support:
         reject_msg += f"\n\nNeed help? Contact: {support}"
     await user_flow.send_welcome(order["user_id"], context)
-    await utils.safe_send_message(context.bot, order["user_id"], reject_msg)
+    await utils.safe_send_message(context.bot, order["user_id"], reject_msg, protect_content=utils.protect_enabled())
 
     log_msg = order.get("log_msg")
     if log_msg:
@@ -411,13 +416,14 @@ async def review_group_selected(update: Update, context: ContextTypes.DEFAULT_TY
 
     media_type = db.get_setting("accept_media_type")
     file_id = db.get_setting("accept_media_file_id")
+    protect = utils.protect_enabled()
     await user_flow.send_welcome(order["user_id"], context)
     if media_type == "photo" and file_id:
-        await utils.safe_send_photo(context.bot, order["user_id"], file_id, user_text)
+        await utils.safe_send_photo(context.bot, order["user_id"], file_id, user_text, protect_content=protect)
     elif media_type == "video" and file_id:
-        await utils.safe_send_video(context.bot, order["user_id"], file_id, user_text)
+        await utils.safe_send_video(context.bot, order["user_id"], file_id, user_text, protect_content=protect)
     else:
-        await utils.safe_send_message(context.bot, order["user_id"], user_text, disable_web_page_preview=True)
+        await utils.safe_send_message(context.bot, order["user_id"], user_text, disable_web_page_preview=True, protect_content=protect)
 
     for chat_id, msg_id in db.get_admin_msg_refs(order_id):
         try:
