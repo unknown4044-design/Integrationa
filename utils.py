@@ -35,15 +35,32 @@ def clone_path_id(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()[:20]
 
 
-def generate_unique_amount(base_price: float) -> float:
+def generate_unique_amount(base_price: float):
     """
-    Base price me chhota unique variation add karta hai (configurable range)
-    taaki har order ka amount alag ho aur screenshot se easily match ho sake.
+    Base price me chhota unique variation add/minus karta hai (configurable range,
+    randomly plus ya minus) taaki har order ka amount alag ho aur screenshot se
+    easily match ho sake.
+
+    Agar Variation Range me dono values poore number hain (e.g. 1,2) to result bhi
+    poora rupee hi hoga (koi paise/decimal nahi, e.g. 74, 76). Agar decimal diya
+    (e.g. 0.11,0.99) to result me paise (decimal) aayenge (e.g. 100.37).
     """
     vmin = float(db.get_setting("variation_min", 0.11))
     vmax = float(db.get_setting("variation_max", 0.99))
-    variation = round(random.uniform(vmin, vmax), 2)
-    return round(base_price + variation, 2)
+    sign = random.choice([1, -1])
+
+    if vmin == int(vmin) and vmax == int(vmax):
+        magnitude = random.randint(int(vmin), int(vmax))
+        final_amount = int(round(base_price)) + sign * magnitude
+        if final_amount <= 0:
+            final_amount = int(round(base_price)) + magnitude
+        return final_amount
+
+    magnitude = round(random.uniform(vmin, vmax), 2)
+    final_amount = round(base_price + sign * magnitude, 2)
+    if final_amount <= 0:  # safety net -- kabhi bhi negative/zero amount na bane
+        final_amount = round(base_price + magnitude, 2)
+    return final_amount
 
 
 def build_upi_link(amount: float, note: str) -> str:
